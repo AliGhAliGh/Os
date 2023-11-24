@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "socket.h": "c",
+        "stdlib.h": "c",
+        "typeinfo": "c",
+        "string.h": "c",
+        "in.h": "c",
+        "json.h": "c",
+        "inet.h": "c",
+        "network.h": "c",
+        "str.h": "c",
+        "termios.h": "c",
+        "signal.h": "c",
+        "cmath": "c",
+        "*.tcc": "c",
+        "data.h": "c",
+        "log.h": "c"
+    }
+}
