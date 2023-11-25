@@ -2,6 +2,14 @@
 
 using namespace std;
 
+vector<int> slicing(vector<int> arr, int x)
+{
+    int y = arr.size() - 1;
+    vector<int> result(y - x + 1);
+    copy(arr.begin() + x, arr.begin() + y + 1, result.begin());
+    return result;
+}
+
 vector<string> split(const string &str, char delim)
 {
     vector<string> elems;
@@ -20,19 +28,11 @@ vector<string> split(const string &str, char delim)
 vector<string> get_dirs(const string &path)
 {
     vector<string> res;
-
     DIR *directory = opendir(path.c_str());
     dirent *entry;
     while ((entry = readdir(directory)) != NULL)
-    {
-        if (entry->d_type == DT_DIR)
-        {
-            if (entry->d_name[0] != '.')
-            {
-                res.push_back(entry->d_name);
-            }
-        }
-    }
+        if (entry->d_type == DT_DIR && entry->d_name[0] != '.')
+            res.push_back(entry->d_name);
     closedir(directory);
     return res;
 }
@@ -53,7 +53,7 @@ vector<float> convert_f(vector<string> data)
     return row;
 }
 
-vector<vector<int>> get_csv(const string &path)
+vector<vector<int>> get_csv(const string &path, int ignore_count)
 {
     vector<vector<int>> res;
     ifstream file;
@@ -61,12 +61,12 @@ vector<vector<int>> get_csv(const string &path)
     string line;
     getline(file, line);
     while (getline(file, line))
-        res.push_back(convert(split(line, ',')));
+        res.push_back(slicing(convert(split(line, ',')), ignore_count));
     file.close();
     return res;
 }
 
-string create_process(const char *proc_name, string param)
+int create_process(const char *proc_name, string param)
 {
     int p1[2];
     pipe(p1);
@@ -81,24 +81,19 @@ string create_process(const char *proc_name, string param)
     else
     {
         close(p1[1]);
-        char buffer[buffer_size];
-        read(p1[0], buffer, buffer_size * sizeof(char));
-        close(p1[0]);
-        return buffer;
+        return p1[0];
     }
     throw;
 }
 
-string create_process(const char *proc_name, string send_data, string param)
+int create_process(const char *proc_name, string send_data, string param)
 {
     int p1[2];
     int p2[2];
     pipe(p1);
     pipe(p2);
-    log::warn("before fork");
     if (fork() == 0)
     {
-        log::warn("child fork");
         close(0);
         dup(p1[0]);
         close(p1[0]);
@@ -107,22 +102,15 @@ string create_process(const char *proc_name, string send_data, string param)
         dup(p2[1]);
         close(p2[0]);
         close(p2[1]);
-        // log::warn("before exec");
         execl(proc_name, proc_name, param.c_str(), NULL);
     }
     else
     {
-        log::warn("parent fork");
         close(p1[0]);
         close(p2[1]);
         write(p1[1], send_data.c_str(), send_data.size());
-        log::warn("after write parent");
-        char buffer[buffer_size];
-        read(p2[0], buffer, buffer_size * sizeof(char));
-        log::warn("after read parent");
         close(p1[1]);
-        close(p2[0]);
-        return buffer;
+        return p2[0];
     }
     throw;
 }
@@ -149,6 +137,29 @@ void send_to_pipe(const string &name, const string &data)
     close(fd);
 }
 
+string read(int fd)
+{
+    char buffer[buffer_size];
+    int r;
+    string data = "";
+    while (true)
+    {
+        r = read(fd, buffer, (buffer_size - 1) * sizeof(char));
+        buffer[r] = 0;
+        data += buffer;
+        if (r < buffer_size - 1)
+            break;
+    }
+    close(fd);
+    if (r < 0)
+    {
+        log::perror("read");
+        exit(1);
+    }
+    // log::dbug("recv data via pipe:\n" + data);
+    return data;
+}
+
 string recv_from_pipe(const string &name)
 {
     string fifoName = get_fifo_name(name);
@@ -158,18 +169,12 @@ string recv_from_pipe(const string &name)
         log::perror("open");
         exit(1);
     }
-    char buffer[buffer_size];
-    if (read(fd, buffer, buffer_size * sizeof(char)) == -1)
-    {
-        log::perror("read");
-        exit(1);
-    }
-    close(fd);
-    return buffer;
+    return read(fd);
 }
 
-void delete_pipe(const std::string &name)
+void delete_pipe(const string &name)
 {
+    string fifoName = get_fifo_name(name);
     if (unlink(get_fifo_name(name).c_str()) == -1)
     {
         log::perror("unlink");
@@ -177,9 +182,10 @@ void delete_pipe(const std::string &name)
     }
 }
 
-void create_pipe(const std::string &name)
+void create_pipe(const string &name)
 {
-    if (mkfifo(get_fifo_name(name).c_str(), 0666) == -1)
+    string fifoName = get_fifo_name(name);
+    if (mkfifo(get_fifo_name(name).c_str(), 0777) == -1)
     {
         log::perror("mkfifo");
         exit(1);
@@ -189,8 +195,8 @@ void create_pipe(const std::string &name)
 vector<Resource> get_resources(string input)
 {
     vector<Resource> res;
-    auto req = split(input);
-    for (auto name : req)
+    auto req = split(input, ' ');
+    for (const auto &name : req)
         if (name == "e")
             res.push_back(Resource::Electricity);
         else if (name == "w")
@@ -198,4 +204,52 @@ vector<Resource> get_resources(string input)
         else if (name == "g")
             res.push_back(Resource::Gas);
     return res;
+}
+
+string concat(const vector<int> &data, const char delim)
+{
+    stringstream ss;
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+        ss << to_string(data[i]);
+        if (i != data.size() - 1)
+            ss << delim;
+    }
+    return ss.str();
+}
+
+string concat(const vector<long long> &data, const char delim)
+{
+    stringstream ss;
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+        ss << to_string(data[i]);
+        if (i != data.size() - 1)
+            ss << delim;
+    }
+    return ss.str();
+}
+
+string concat(const vector<float> &data, const char delim)
+{
+    stringstream ss;
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+        ss << fixed << setprecision(2) << data[i];
+        if (i != data.size() - 1)
+            ss << delim;
+    }
+    return ss.str();
+}
+
+string concat(const vector<string> &data, const char delim)
+{
+    stringstream ss;
+    for (size_t i = 0; i < data.size(); ++i)
+    {
+        ss << data[i];
+        if (i != data.size() - 1)
+            ss << delim;
+    }
+    return ss.str();
 }

@@ -9,10 +9,15 @@
 #include <sys/file.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
 #include <dirent.h>
+
+#define METER "bin/meter"
+#define BUILDING "bin/building"
+#define BILL_CALC "bin/bill_calc"
 
 constexpr int buffer_size = 512;
 constexpr int day_of_month = 30;
@@ -36,6 +41,7 @@ typedef struct meter
 
 typedef struct report
 {
+    Resource resource;
     std::vector<float> averages;
     std::vector<int> sums;
     std::vector<int> peak_hours;
@@ -72,17 +78,21 @@ inline Resource str_to_res(const std::string s)
 
 std::vector<std::string> split(const std::string &str, char delim = ' ');
 
+std::vector<int> slicing(std::vector<int> arr, int X);
+
 std::vector<std::string> get_dirs(const std::string &path);
 
-std::vector<std::vector<int>> get_csv(const std::string &path);
+std::vector<std::vector<int>> get_csv(const std::string &path, int ignore_count);
 
 std::vector<int> convert(std::vector<std::string> data);
 
 std::vector<float> convert_f(std::vector<std::string> data);
 
-std::string create_process(const char *proc_name, std::string send_data, std::string param);
+int create_process(const char *proc_name, std::string send_data, std::string param);
 
-std::string create_process(const char *proc_name, std::string param);
+int create_process(const char *proc_name, std::string param);
+
+std::string read(int fd);
 
 void send_to_pipe(const std::string &name, const std::string &data);
 
@@ -94,13 +104,12 @@ std::string recv_from_pipe(const std::string &name);
 
 std::vector<Resource> get_resources(std::string input);
 
-template <typename T>
-std::string concat(std::vector<T> data, const char delim = ',')
-{
-    std::ostringstream data_stream;
-    copy(data.begin(), data.end() - 1, std::ostream_iterator<T>(data_stream, &delim));
-    data_stream << data.back();
-    return data_stream.str();
-}
+std::string concat(const std::vector<int> &data, const char delim = ',');
+
+std::string concat(const std::vector<long long> &data, const char delim = ',');
+
+std::string concat(const std::vector<float> &data, const char delim = ',');
+
+std::string concat(const std::vector<std::string> &data, const char delim = ',');
 
 #endif

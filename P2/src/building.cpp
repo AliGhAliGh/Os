@@ -22,14 +22,19 @@ int main(int argc, char *argv[])
     string path(argv[1]);
     string name(split(path, '/').back());
     string need_resources;
-    cin >> need_resources;
+    getline(cin, need_resources);
     auto reqs = get_resources(need_resources);
     Building my_building;
+    vector<pair<Resource, int>> res_fd;
     for (const auto &req : reqs)
-        my_building.set_data(req, create_process("/home/aligh/Desktop/Os/P2/meter", path + "/" + res_to_str(req)));
-
-    create_pipe(name);
+    {
+        log::info("building " + name + " creates meter for " + res_to_str(req));
+        res_fd.push_back({req, create_process(METER, path + "/" + res_to_str(req))});
+    }
+    for (const auto &p : res_fd)
+    {
+        my_building.set_data(p.first, read(p.second));
+        log::info("meter " + res_to_str(p.first) + " of " + name + " is done!");
+    }
     send_to_pipe(name, my_building.get_data());
-    cout << "done";
-    // log::info("Sent from %s to bill_calc!", name);
 }

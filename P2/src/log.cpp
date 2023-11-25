@@ -4,67 +4,55 @@
 #include "include/log.hpp"
 #include "include/color.hpp"
 
-using namespace std; 
+using namespace std;
 
-const string INFO  = Color::Green  + "[INFO]"  + Color::Reset;
-const string WARN  = Color::Yellow + "[WARN]"  + Color::Reset;
-const string ERROR = Color::Red    + "[ERRO]"  + Color::Reset;
+const string DBUG = Color::Yellow + "[DBUG]" + Color::Reset;
+const string INFO = Color::Green + "[INFO]" + Color::Reset;
+const string ERROR = Color::Red + "[ERRO]" + Color::Reset;
+const string RESULT = Color::Cyan + "[RSLT]" + Color::Reset;
 
-void log::setLevel(log::level l)
+void log::logMsg(const string &level, const string &msg, const string &perr = "")
 {
-    if (l >= log::level::info && l <= log::level::none)
-        lLevel = l;
+    string res = level + " " + msg + (perr != "" ? ": " + perr + "\n" : "\n");
+    write(STDERR_FILENO, res.c_str(), res.size());
 }
 
-void log::logMsg(const string &level, const string &fmt, va_list &args, const string &perr = "")
-{
-    cout << level +" ";
-    vprintf(fmt.c_str(), args);
-    if (perr != "")
-        cout << ": " << perr;
-    cout << endl;
-}
-
-void log::info(const string &fmt, ...)
+void log::info(const string &msg)
 {
     if (lLevel <= log::level::info)
     {
-        va_list args;
-        va_start(args, fmt);
-        logMsg(INFO, fmt, args);
-        va_end(args);
+        logMsg(INFO, msg);
     }
 }
 
-void log::warn(const string &fmt, ...)
+void log::dbug(const string &msg)
 {
-    if (lLevel <= log::level::warn)
+    if (lLevel <= log::level::dbug)
     {
-        va_list args;
-        va_start(args, fmt);
-        logMsg(WARN, fmt, args);
-        va_end(args);
+        logMsg(DBUG, msg);
     }
 }
 
-void log::error(const string &fmt, ...)
+void log::result(const string &msg)
 {
-    if (lLevel <= log::level::error)
+    if (lLevel <= log::level::result)
     {
-        va_list args;
-        va_start(args, fmt);
-        logMsg(ERROR, fmt, args);
-        va_end(args);
+        logMsg(RESULT, msg);
     }
 }
 
-void log::perror(const string &fmt, ...)
+void log::error(const string &msg)
 {
     if (lLevel <= log::level::error)
     {
-        va_list args;
-        va_start(args, fmt);
-        logMsg(ERROR, fmt, args, strerror(errno));
-        va_end(args);
+        logMsg(ERROR, msg);
+    }
+}
+
+void log::perror(const string &msg)
+{
+    if (lLevel <= log::level::error)
+    {
+        logMsg(ERROR, msg, strerror(errno));
     }
 }

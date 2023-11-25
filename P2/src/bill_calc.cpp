@@ -37,12 +37,28 @@ float calculate_bill(const Meter &meter, int index, int coe)
     return res * coe;
 }
 
+vector<Meter> get_meters(string data, vector<Resource> limits)
+{
+    vector<Meter> res;
+    auto resources = split(data, '%');
+    for (const auto &resource : resources)
+    {
+        auto vars = split(resource, '|');
+        if (find(limits.begin(), limits.end(), str_to_res(vars[0])) == limits.end())
+            continue;
+        Meter meter = {str_to_res(vars[0]), convert(split(vars[1], ',')), convert(split(vars[2], ',')), convert(split(vars[3], ','))};
+        res.push_back(meter);
+    }
+    return res;
+}
+
 vector<Report> get_bill(vector<Meter> data, vector<vector<int>> coe, string building_name)
 {
     vector<Report> res;
     for (const auto &meter : data)
     {
         Report rep;
+        rep.resource = meter.resource;
         rep.sums = meter.sums;
         rep.peak_hours = meter.peak_hours;
         for (int i = 0; i < month_of_year; i++)
@@ -53,21 +69,6 @@ vector<Report> get_bill(vector<Meter> data, vector<vector<int>> coe, string buil
         }
         res.push_back(rep);
     }
-
-    return res;
-}
-
-vector<Meter> get_meters(string data, vector<Resource> limits)
-{
-    vector<Meter> res;
-    auto resources = split(data, '%');
-    for (const auto &resource : resources)
-    {
-        auto vars = split(resource, '|');
-        if (find(limits.begin(), limits.end(), str_to_res(vars[0])) == limits.end())
-            continue;
-        res.push_back({str_to_res(vars[0]), convert(split(vars[1])), convert(split(vars[2])), convert(split(vars[3]))});
-    }
     return res;
 }
 
@@ -75,22 +76,27 @@ string rep_to_str(vector<Report> data)
 {
     vector<string> res;
     for (const auto &d : data)
-        res.push_back(concat(d.averages) + "|" + concat(d.sums) + "|" + concat(d.peak_hours) + "|" + concat(d.bill) + "|" + concat(d.diff));
-    return concat(res, '%');
+        res.push_back(res_to_str(d.resource) + "|" + concat(d.averages) + "|" + concat(d.sums) + "|" + concat(d.peak_hours) + "|" + concat(d.bill) + "|" + concat(d.diff));
+    return concat(res, '^');
 }
 
 int main(int argc, char *argv[])
 {
     string input(argv[1]);
-    auto coe = get_csv(input + "/bills");
-    cin >> input;
+    auto coe = get_csv(input + "/bills", 2);
+    getline(cin, input);
     auto data = split(input, '|');
     auto buildings = split(data[0], ',');
     auto limits = get_resources(data[1]);
 
+    string res = "";
     for (const auto &building : buildings)
     {
-        cout << rep_to_str(get_bill(get_meters(recv_from_pipe(building), limits), coe, building));
+        res += rep_to_str(get_bill(get_meters(recv_from_pipe(building), limits), coe, building));
+        if (building != buildings.back())
+            res += "%";
         delete_pipe(building);
+        log::info("building " + building + " is done!");
     }
+    cout << res;
 }
