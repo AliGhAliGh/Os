@@ -1,1 +1,5 @@
-/P*/*
+**
+!P*
+!P*/Makefile
+!P*/src
+!P*/src/**
