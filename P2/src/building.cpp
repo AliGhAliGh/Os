@@ -6,14 +6,14 @@ using namespace std;
 void Building::set_data(Resource resource, string data)
 {
     auto big_data = split(data, '|');
-    Building::data.push_back({resource, convert(split(big_data[0], ',')), convert(split(big_data[1], ',')), convert(split(big_data[2], ','))});
+    Building::data.push_back({resource, convert(split(big_data[0], ',')), convert(split(big_data[1], ',')), convert(split(big_data[2], ',')), convert(split(big_data[3], ','))});
 }
 
 string Building::get_data()
 {
     vector<string> res;
     for (const auto &d : Building::data)
-        res.push_back(res_to_str(d.resource) + "|" + concat(d.peaks) + "|" + concat(d.peak_hours) + "|" + concat(d.sums));
+        res.push_back(res_to_str(d.resource) + "|" + concat(d.peaks) + "|" + concat(d.peak_hours) + "|" + concat(d.leasts) + "|" + concat(d.sums));
     return concat(res, '%');
 }
 

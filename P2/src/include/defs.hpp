@@ -36,6 +36,7 @@ typedef struct meter
     Resource resource;
     std::vector<int> peaks;
     std::vector<int> peak_hours;
+    std::vector<int> leasts;
     std::vector<int> sums;
 } Meter;
 

@@ -35,13 +35,32 @@ vector<long long> get_peaks(vector<vector<int>> data, vector<int> &hours)
     return res;
 }
 
+vector<long long> get_leasts(vector<vector<int>> data)
+{
+    vector<long long> res;
+    for (int k = 0; k < month_of_year; k++)
+    {
+        vector<long long> sums;
+        for (int j = 0; j < hour_of_day; j++)
+        {
+            sums.push_back(0);
+            for (int i = 0; i < day_of_month; i++)
+                sums[j] += data[i + k * day_of_month][j];
+        }
+        auto min = min_element(sums.begin(), sums.end());
+        res.push_back(*min);
+    }
+    return res;
+}
+
 int main(int argc, char *argv[])
 {
     auto data = get_csv(argv[1], 3);
     vector<int> hours;
     auto peaks = get_peaks(data, hours);
+    auto leasts = get_leasts(data);
     auto sums = get_sum(data);
-    string result = concat(peaks) + "|" + concat(hours) + "|" + concat(sums);
+    string result = concat(peaks) + "|" + concat(hours) + "|" + concat(leasts) + "|" + concat(sums);
     cout << result;
     log::dbug("send data via un_named pipe:\n" + result);
 }
