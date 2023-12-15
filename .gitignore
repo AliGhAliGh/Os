@@ -1,5 +1,8 @@
 **
 !P*
-!P*/Makefile
-!P*/src
-!P*/src/**
+!**/Makefile
+!**/src
+!**/src/**
+!P3/parallel
+!P3/serial
+!P3/input.bmp
