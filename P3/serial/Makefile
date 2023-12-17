@@ -2,7 +2,7 @@ PATH_SRC = ./src
 PATH_INC = $(PATH_SRC)/include
 PATH_OBJ = ./obj
 
-ARGS = ../input.bmp
+ARGS = ../input2.bmp
 
 CPP = g++
 CPP_FLAGS = -Wall -std=c++17

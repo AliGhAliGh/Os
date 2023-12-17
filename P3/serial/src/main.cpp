@@ -24,21 +24,29 @@ int main(int argc, char *argv[])
         cout << "File read error" << endl;
         return 1;
     }
-    print_time("Read", start);
+    if (argc == 2)
+        print_time("Read", start);
 
     image->flip_vert();
-    print_time("Flip", start);
+    if (argc == 2)
+        print_time("Flip", start);
 
     image->blur(kernel, 16);
-    print_time("Blur", start);
+    if (argc == 2)
+        print_time("Blur", start);
 
     image->purple(filter);
-    print_time("Purple", start);
+    if (argc == 2)
+        print_time("Purple", start);
 
     image->add_line();
-    print_time("Lines", start);
+    if (argc == 2)
+        print_time("Lines", start);
 
     set_bmp(image, "output.bmp");
-    print_time("Execution", exec_timer);
+    if (argc == 2)
+        print_time("Execution", exec_timer);
+    if (argc != 2)
+        cout << int(double(clock() - start) * 1000 / double(CLOCKS_PER_SEC)) << endl;
     return 0;
 }

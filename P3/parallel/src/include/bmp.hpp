@@ -19,6 +19,8 @@ typedef int LONG;
 typedef unsigned short WORD;
 typedef unsigned int DWORD;
 
+#define CLOCK_PER_SEC 2600000
+
 typedef struct convolution_buffer
 {
     std::vector<std::vector<Rgb>> *temp;
@@ -62,18 +64,18 @@ public:
     void purple(float *filter);
     void add_line();
     void set_empty(int row);
-    void set_pixel(unsigned char *pixel, int row);
+    void set_pixel(unsigned char *pixel, int row, int col);
     Rgb *get_matrix(int row, int col);
     void set_pixel(Rgb rgb, int row, int col);
     Rgb *get_pixel(int row, int col);
 
-    int cols, rows, real_cols;
+    int cols, rows;
+    DWORD bf_size;
     std::vector<std::vector<Rgb> *> data;
 
 private:
     void create_thread(void *buffer, void *(func)(void *));
 
-    DWORD bf_size;
     char *old_data;
 };
 
@@ -81,7 +83,7 @@ typedef struct thread_param
 {
     void *buffer;
     int id;
-    Image *image;
+    // Image *image;
 } Param;
 
 Image *create(const char *fileName);

@@ -3,6 +3,8 @@
 
 using namespace std;
 
+Image *image;
+
 void limit_int(int &val)
 {
     if (val > 255)
@@ -33,9 +35,9 @@ void print_pixel(Rgb rgb)
     cout << "r:" << (int)rgb.r << ",g:" << (int)rgb.g << ",b:" << (int)rgb.b << endl;
 }
 
-void Image::set_pixel(unsigned char *pixel, int row)
+void Image::set_pixel(unsigned char *pixel, int row, int col)
 {
-    data[row]->push_back({pixel[0], pixel[1], pixel[2]});
+    set_pixel({pixel[0], pixel[1], pixel[2]}, row, col);
 }
 
 void Image::set_pixel(Rgb rgb, int row, int col)
@@ -47,12 +49,13 @@ void *flip_vert(void *arg)
 {
     auto param = (Param *)arg;
     auto data = *((vector<vector<Rgb> *> *)param->buffer);
-    int rows = param->image->rows;
+    int rows = image->rows;
     int turn = param->id * rows / (THREAD_COUNT * 2);
     int turn2 = (param->id + 1) * rows / (THREAD_COUNT * 2);
 
     for (int i = turn; i < turn2; i++)
         data[i + 1]->swap(*data[rows - i]);
+
     return NULL;
 }
 
@@ -65,14 +68,15 @@ void *purple(void *arg)
 {
     auto param = (Param *)arg;
     auto filter = (float *)param->buffer;
-    int rows = param->image->rows;
-    int cols = param->image->cols;
+    int rows = image->rows;
+    int cols = image->cols;
     int turn = param->id * rows / THREAD_COUNT;
     int turn2 = (param->id + 1) * rows / THREAD_COUNT;
+
     for (int i = turn; i < turn2; i++)
         for (int j = 0; j < cols; j++)
         {
-            auto pixel = param->image->get_pixel(i, j);
+            auto pixel = image->get_pixel(i, j);
             float r = filter[0] * pixel->r + filter[1] * pixel->g + filter[2] * pixel->b;
             float g = filter[3] * pixel->r + filter[4] * pixel->g + filter[5] * pixel->b;
             float b = filter[6] * pixel->r + filter[7] * pixel->g + filter[8] * pixel->b;
@@ -82,8 +86,9 @@ void *purple(void *arg)
             limit_int(r2);
             limit_int(g2);
             limit_int(b2);
-            param->image->set_pixel({(unsigned char)r2, (unsigned char)g2, (unsigned char)b2}, i, j);
+            image->set_pixel({(unsigned char)r2, (unsigned char)g2, (unsigned char)b2}, i, j);
         }
+
     return NULL;
 }
 
@@ -95,17 +100,26 @@ void Image::purple(float *filter)
 void *add_line(void *arg)
 {
     auto param = (Param *)arg;
-    int rows = param->image->rows;
-    int cols = param->image->cols;
+    int rows = image->rows;
+    int cols = image->cols;
     int turn = param->id * rows / THREAD_COUNT;
     int turn2 = (param->id + 1) * rows / THREAD_COUNT;
+    int min = rows < cols ? rows : cols;
+
+    // for (int i = turn; i < turn2; i++)
+    // {
+    //     image->set_pixel(LINE_COLOR, i, i);
+    //     for (int j = 0; j < cols; j++)
+    //         if (i + (cols - 1 - j) == cols / 2 || i + (cols - 1 - j) - rows == cols / 2)
+    //             image->set_pixel(LINE_COLOR, i, j);
+    // }
+
     for (int i = turn; i < turn2; i++)
-    {
-        param->image->set_pixel(LINE_COLOR, i, rows - 1 - i);
         for (int j = 0; j < cols; j++)
-            if (i + j == cols / 2 || i + j - rows == cols / 2)
-                param->image->set_pixel(LINE_COLOR, i, j);
-    }
+            for (int k = 1; k < 5; k++)
+                if (i + j == k * min / 2)
+                    image->set_pixel(LINE_COLOR, i, j);
+
     return NULL;
 }
 
@@ -126,10 +140,6 @@ Rgb *Image::get_matrix(int row, int col)
     res[6] = *get_pixel(row + 1, col - 1);
     res[7] = *get_pixel(row + 1, col);
     res[8] = *get_pixel(row + 1, col + 1);
-    if (row == rows)
-        cout << "row bug" << endl;
-    if (col == cols)
-        cout << "col bug" << endl;
     return res;
 }
 
@@ -137,17 +147,17 @@ void *blur(void *arg)
 {
     auto param = (Param *)arg;
     auto data = *((ConvBuffer *)param->buffer);
-    int rows = param->image->rows;
-    int cols = param->image->cols;
+    int rows = image->rows;
+    int cols = image->cols;
     int turn = param->id * rows / THREAD_COUNT;
     int turn2 = (param->id + 1) * rows / THREAD_COUNT;
 
     for (int i = turn; i < turn2; i++)
     {
-        auto temp2 = new vector<Rgb>;
+        vector<Rgb> temp2(cols);
         for (int j = 0; j < cols; j++)
-            temp2->push_back(calculate(data.kernel, param->image->get_matrix(i, j), data.coef));
-        (*data.temp)[i] = *temp2;
+            temp2[j] = calculate(data.kernel, image->get_matrix(i, j), data.coef);
+        data.temp->at(i) = temp2;
     }
 
     return NULL;
@@ -155,9 +165,11 @@ void *blur(void *arg)
 
 void Image::blur(int *kernel, int coef)
 {
-    vector<vector<Rgb>> temp(rows, vector<Rgb>());
+    vector<vector<Rgb>> temp(rows);
     ConvBuffer data = {&temp, kernel, coef};
+
     create_thread(&data, ::blur);
+
     for (int i = 0; i < rows; i++)
         for (int j = 0; j < cols; j++)
             set_pixel(temp[i][j], i, j);
@@ -171,17 +183,22 @@ Rgb *Image::get_pixel(int row, int col)
 void Image::get(char *&buffer, int &buff_size)
 {
     buff_size = bf_size;
-    buffer = old_data + sizeof(BITMAPINFOHEADER) + sizeof(BITMAPFILEHEADER);
+    buffer = old_data;
+
+    int count = 0;
+    int extra = cols % 4;
     for (int i = 0; i < rows; i++)
     {
+        count += extra;
         for (int j = cols - 1; j >= 0; j--)
         {
-            memcpy(buffer, get_pixel(i, j), sizeof(Rgb));
-            buffer += sizeof(Rgb);
+            count += 3;
+            auto rgb = get_pixel(i, j);
+            buffer[buff_size - count] = char(rgb->r);
+            buffer[buff_size - count - 1] = char(rgb->g);
+            buffer[buff_size - count - 2] = char(rgb->b);
         }
-        buffer += (real_cols - cols) * sizeof(Rgb);
     }
-    buffer = old_data;
 }
 
 void *set_image(void *arg)
@@ -189,52 +206,49 @@ void *set_image(void *arg)
     auto param = (Param *)arg;
     auto buffer = (char *)param->buffer;
     int id = param->id;
-    auto data = param->image->data;
-    int real_cols = param->image->real_cols;
-    int cols = param->image->cols;
-    int rows = param->image->rows;
+    auto data = image->data;
+    int cols = image->cols;
+    int rows = image->rows;
+    int bf_size = image->bf_size;
     int turn = id * rows / THREAD_COUNT;
     int turn2 = (id + 1) * rows / THREAD_COUNT;
 
+    int extra = cols % 4;
+    int count = 1 + turn * (3 * cols + extra);
     for (int i = turn; i < turn2; i++)
     {
-        data[i + 1]->at(0) = LINE_COLOR;
-        for (int j = 0; j < cols; j++)
+        count += extra;
+        for (int j = cols - 1; j >= 0; j--)
         {
-            int index = sizeof(Rgb) * (i * real_cols + j);
-            data[i + 1]->at(cols - j) =
-                {(unsigned char)buffer[index], (unsigned char)buffer[index + 1], (unsigned char)buffer[index + 2]};
+            image->set_pixel({(unsigned char)buffer[bf_size - count], (unsigned char)buffer[bf_size - count - 1], (unsigned char)buffer[bf_size - count - 2]}, i, j);
+            count += 3;
         }
-        data[i + 1]->at(cols + 1) = LINE_COLOR;
     }
+    // for (int i = turn; i < turn2; i++)
+    //     for (int j = 0; j < cols; j++)
+    //         image->set_pixel((unsigned char *)&buffer[sizeof(Rgb) * (i * real_cols + j)], i, j);
 
     return NULL;
 }
 
 void Image::init(char *buffer)
 {
+    image = this;
     old_data = buffer;
     auto file_header = (PBITMAPFILEHEADER)(buffer);
-    buffer += sizeof(BITMAPFILEHEADER);
-    auto info_header = (PBITMAPINFOHEADER)(buffer);
-    buffer += sizeof(BITMAPINFOHEADER);
+    auto info_header = (PBITMAPINFOHEADER)(buffer + sizeof(BITMAPFILEHEADER));
     bf_size = file_header->bfSize;
     rows = info_header->biHeight;
     cols = info_header->biWidth;
-    real_cols = 4 * (cols / 4) + (cols % 4 ? 4 : 0);
 
+    data = vector<vector<Rgb> *>(rows + 2);
     for (int i = 0; i < rows + 2; i++)
     {
         vector<Rgb> *temp = new vector<Rgb>(cols + 2);
-        data.push_back(temp);
+        data[i] = temp;
     }
 
     create_thread(buffer, set_image);
-    if (data.size() != (long unsigned int)rows + 2)
-        cout << "bug row" << endl;
-    for (int i = 0; i < rows + 2; i++)
-        if (data[i]->size() != (long unsigned int)cols + 2)
-            cout << "bug col" << endl;
 }
 
 void Image::create_thread(void *buffer, void *(func)(void *))
@@ -243,19 +257,14 @@ void Image::create_thread(void *buffer, void *(func)(void *))
     Param params[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++)
     {
-        // cout << "created : " << i << endl;
         params[i].buffer = buffer;
         params[i].id = i;
-        params[i].image = this;
+        // params[i].image = this;
         pthread_create(&threads[i], NULL, func, &params[i]);
     }
 
-    // cout << "joining..." << endl;
-
     for (int i = 0; i < THREAD_COUNT; i++)
         pthread_join(threads[i], NULL);
-
-    // cout << "finish" << endl;
 }
 
 void Image::set_empty(int row)

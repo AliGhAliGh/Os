@@ -31,10 +31,11 @@ void print_pixel(Rgb rgb)
     cout << "r:" << (int)rgb.r << ",g:" << (int)rgb.g << ",b:" << (int)rgb.b << endl;
 }
 
-void Image::set_pixel(unsigned char *pixel)
+void Image::set_pixel(unsigned char *pixel, int row, int col)
 {
-    auto vec = data.back();
-    vec->push_back({pixel[0], pixel[1], pixel[2]});
+    set_pixel({pixel[0], pixel[1], pixel[2]}, row, col);
+    // auto vec = data.back();
+    // vec->push_back({pixel[0], pixel[1], pixel[2]});
 }
 
 void Image::set_pixel(Rgb rgb, int row, int col)
@@ -44,12 +45,8 @@ void Image::set_pixel(Rgb rgb, int row, int col)
 
 void Image::flip_vert()
 {
-    for (int i = 1; i < rows / 2 + 1; i++)
-    {
-        auto tmp = data[i];
-        data[i] = data[rows + 1 - i];
-        data[rows + 1 - i] = tmp;
-    }
+    for (int i = 0; i < rows / 2; i++)
+        data[i + 1]->swap(*data[rows - i]);
 }
 
 void Image::purple(float *filter)
@@ -73,13 +70,24 @@ void Image::purple(float *filter)
 
 void Image::add_line()
 {
+    int min = rows < cols ? rows : cols;
+    // int max = rows < cols ? cols : rows;
+    // for (int i = 0; i < min; i++)
+    // {
+    //     for (int j = 0; j * min - i >= 0 && j * min - i < max; j++)
+    //     {
+    //         if (rows < cols)
+    //             set_pixel(LINE_COLOR, i, j * min - i);
+    //         else
+    //             set_pixel(LINE_COLOR, j * min - i, i);
+    //     }
+    // }
+
     for (int i = 0; i < rows; i++)
-    {
-        set_pixel({255, 255, 255}, i, rows - 1 - i);
         for (int j = 0; j < cols; j++)
-            if (i + j == cols / 2 || i + j - rows == cols / 2)
-                set_pixel({255, 255, 255}, i, j);
-    }
+            for (int k = 1; k < 5; k++)
+                if (i + j == k * min / 2)
+                    set_pixel(LINE_COLOR, i, j);
 }
 
 Rgb *Image::get_matrix(int row, int col)
@@ -99,13 +107,13 @@ Rgb *Image::get_matrix(int row, int col)
 
 void Image::blur(int *kernel, int coef)
 {
-    vector<vector<Rgb>> temp;
+    vector<vector<Rgb>> temp(rows);
     for (int i = 0; i < rows; i++)
     {
-        vector<Rgb> temp2;
+        vector<Rgb> temp2(cols);
         for (int j = 0; j < cols; j++)
-            temp2.push_back(calculate(kernel, get_matrix(i, j), coef));
-        temp.push_back(temp2);
+            temp2[j] = calculate(kernel, get_matrix(i, j), coef);
+        temp[i] = temp2;
     }
     for (int i = 0; i < rows; i++)
         for (int j = 0; j < cols; j++)
@@ -120,56 +128,46 @@ Rgb *Image::get_pixel(int row, int col)
 void Image::get(char *&buffer, int &buff_size)
 {
     buff_size = bf_size;
-    buffer = old_data + sizeof(BITMAPINFOHEADER) + sizeof(BITMAPFILEHEADER);
+    buffer = old_data;
+
+    int count = 0;
+    int extra = cols % 4;
     for (int i = 0; i < rows; i++)
     {
+        count += extra;
         for (int j = cols - 1; j >= 0; j--)
         {
-            memcpy(buffer, get_pixel(i, j), sizeof(Rgb));
-            buffer += sizeof(Rgb);
+            count += 3;
+            auto rgb = get_pixel(i, j);
+            buffer[buff_size - count] = char(rgb->r);
+            buffer[buff_size - count - 1] = char(rgb->g);
+            buffer[buff_size - count - 2] = char(rgb->b);
         }
-        buffer += (real_cols - cols) * sizeof(Rgb);
     }
-    buffer = old_data;
 }
 
 Image::Image(char *buffer)
 {
     old_data = buffer;
     auto file_header = (PBITMAPFILEHEADER)(buffer);
-    buffer += sizeof(BITMAPFILEHEADER);
-    auto info_header = (PBITMAPINFOHEADER)(buffer);
-    buffer += sizeof(BITMAPINFOHEADER);
+    auto info_header = (PBITMAPINFOHEADER)(buffer + sizeof(BITMAPFILEHEADER));
     bf_size = file_header->bfSize;
     rows = info_header->biHeight;
     cols = info_header->biWidth;
-    real_cols = 4 * (cols / 4) + (cols % 4 ? 4 : 0);
-    set_row(false);
-    for (int j = cols; j >= 0; j--)
-        set_row(true);
+    data = vector<vector<Rgb> *>(rows + 2);
+    for (int i = 0; i < rows + 2; i++)
+        data[i] = new vector<Rgb>(cols + 2);
+
+    int count = 1;
+    int extra = cols % 4;
     for (int i = 0; i < rows; i++)
     {
-        set_row(false);
+        count += extra;
         for (int j = cols - 1; j >= 0; j--)
-            set_pixel((unsigned char *)&buffer[sizeof(Rgb) * (i * real_cols + j)]);
-        set_row(true);
-    }
-    set_row(false);
-    for (int j = cols; j >= 0; j--)
-        set_row(true);
-}
-
-void Image::set_row(bool is_end)
-{
-    if (is_end)
-    {
-        data.back()->push_back({0, 0, 0});
-    }
-    else
-    {
-        vector<Rgb> *temp = new vector<Rgb>;
-        temp->push_back({0, 0, 0});
-        data.push_back(temp);
+        {
+            set_pixel({(unsigned char)buffer[bf_size - count], (unsigned char)buffer[bf_size - count - 1], (unsigned char)buffer[bf_size - count - 2]}, i, j);
+            count += 3;
+        }
     }
 }
 

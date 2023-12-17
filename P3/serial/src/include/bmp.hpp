@@ -16,6 +16,8 @@ typedef struct rgb
     unsigned char r, g, b;
 } Rgb;
 
+constexpr Rgb LINE_COLOR = {255, 255, 255};
+
 #pragma pack(push, 1)
 typedef struct tagBITMAPFILEHEADER
 {
@@ -53,13 +55,12 @@ public:
     void add_line();
 
 private:
-    void set_pixel(unsigned char *pixel);
+    void set_pixel(unsigned char *pixel, int row, int col);
     Rgb *get_pixel(int row, int col);
     void set_pixel(Rgb rgb, int row, int col);
     Rgb *get_matrix(int row, int col);
-    void set_row(bool is_end);
     std::vector<std::vector<Rgb> *> data;
-    int cols, rows, real_cols;
+    int cols, rows;
     DWORD bf_size;
     char *old_data;
 };
